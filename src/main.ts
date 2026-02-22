@@ -123,6 +123,63 @@ async onClose() {}
   const container = this.contentEl;
   container.empty();
 
+    // 260223 ====== ✅ 툴바 생성 ======
+  const toolbar = container.createDiv({ cls: "gantt-toolbar" });
+
+  const addBtn = toolbar.createEl("button", {
+    text: "+ Task",
+  });
+
+  addBtn.onclick = async () => {
+    if (!this.currentFilePath) return;
+
+    const ganttFile = this.app.vault.getAbstractFileByPath(this.currentFilePath);
+    if (!(ganttFile instanceof TFile)) return;
+
+    const folder = ganttFile.parent;
+    if (!folder) return;
+
+    // 중복 방지 이름 생성
+   let index = 1;
+    const existingNames = new Set(
+    folder.children
+    .filter((f) => f instanceof TFile)
+    .map((f) => f.name)
+    );
+
+    while (existingNames.has(`Task ${index}.md`)) {
+    index++;
+    }
+
+const newPath = `${folder.path}/Task ${index}.md`;
+
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    const todayStr = `${y}-${m}-${d}`;
+
+    const content = `---
+      type: task
+      start: ${todayStr}
+      end: ${todayStr}
+      progress: 0
+---
+
+# Task ${index}
+`;
+
+    const newFile = await this.app.vault.create(newPath, content);
+
+    // 새 파일 열기 (원하면 유지)
+    await this.app.workspace.getLeaf("tab").openFile(newFile);
+
+    // 뷰 갱신
+    await this.render();
+  };
+
+  //이상 260223 테스크버튼 추가
+
   let suppressClickUntil = 0;
   const suppressMs = 500; // 0.5초 정도면 충분
 
