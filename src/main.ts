@@ -163,7 +163,7 @@ async onOpen() {
   }
   };
 
-  this.app.vault.on("modify", this.onModifyRef);
+  //this.app.vault.on("modify", this.onModifyRef);
 }
 
 async onClose() {  if (this.onModifyRef) {
@@ -344,6 +344,8 @@ const gantt = new Gantt(
       if (!file) return;
 
       await this.updateTaskDates(file, start, end);
+        // ✅ 드래그 끝난 뒤에만 전체 재렌더
+        //this.render();
     },
 
     on_click: (task: any) => {
