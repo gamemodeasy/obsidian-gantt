@@ -88,6 +88,23 @@ class GanttView extends ItemView {
   
 	private currentFilePath: string | null = null;
   private onModifyRef?: (file: TFile) => void;
+  private modifyTimer: number | null = null;
+
+// task 파일의 체크박스 상태로 진행률 계산
+  private calculateProgress(file: TFile): number {
+  const cache = this.app.metadataCache.getFileCache(file);
+  const items = cache?.listItems;
+
+  if (!items || items.length === 0) return 0;
+
+  // 체크박스만 필터
+  const todos = items.filter((item) => item.task);
+
+  if (todos.length === 0) return 0;
+
+  const done = todos.filter((item) => item.task === "x").length;
+  return Math.round((done / todos.length) * 100);
+}
 
 	constructor(leaf: WorkspaceLeaf) {
 	super(leaf);
@@ -114,10 +131,46 @@ class GanttView extends ItemView {
 
 async onOpen() {
   await this.render();
+
+  this.onModifyRef = (file: TFile) => {
+    if (!this.currentFilePath) return;
+
+    const ganttFile = this.app.vault.getAbstractFileByPath(this.currentFilePath);
+    if (!(ganttFile instanceof TFile)) return;
+
+    const folderPath = ganttFile.parent?.path;
+    if (!folderPath) return;
+
+    // 같은 폴더의 md 파일만 반응
+    if (file.extension === "md" && file.parent?.path === folderPath) {
+
+      // 🔥 스크롤 위치 저장
+      const scroller = this.contentEl.querySelector(".gantt-container") as HTMLElement;
+      const prevScroll = scroller?.scrollLeft ?? 0;
+
+      this.render().then(() => {
+        const after = this.contentEl.querySelector(".gantt-container") as HTMLElement;
+        if (after) after.scrollLeft = prevScroll;
+      });
+    
+    if  (this.modifyTimer) {
+      window.clearTimeout(this.modifyTimer);
+    }
+
+    this.modifyTimer = window.setTimeout(() => {
+      this.render();
+    }, 120); //100~150ms 정도면 충분히 모아서 렌더링 가능
+  }
+  };
+
+  this.app.vault.on("modify", this.onModifyRef);
 }
 
-async onClose() {}
-
+async onClose() {  if (this.onModifyRef) {
+    this.app.vault.off("modify", this.onModifyRef);
+    this.onModifyRef = undefined;
+  }
+}
 
   private async render() {
   const container = this.contentEl;
@@ -151,22 +204,20 @@ async onClose() {}
     index++;
     }
 
-const newPath = `${folder.path}/Task ${index}.md`;
+    const newPath = `${folder.path}/Task ${index}.md`;
 
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, "0");
     const d = String(today.getDate()).padStart(2, "0");
     const todayStr = `${y}-${m}-${d}`;
-
+    
+    // 기본 frontmatter 포함한 템플릿 내용
     const content = `---
-      type: task
-      start: ${todayStr}
-      end: ${todayStr}
-      progress: 0
+type: task
+start: ${todayStr}
+end: ${todayStr}
 ---
-
-# Task ${index}
 `;
 
     const newFile = await this.app.vault.create(newPath, content);
@@ -211,49 +262,56 @@ const newPath = `${folder.path}/Task ${index}.md`;
     return cache?.frontmatter?.type === "task";
   });
 
-  // 화면 출력
-	//container.createEl("p", { text: `Tasks: ${taskFiles.length}` });
-	//const ul = container.createEl("ul");
-	//for (const f of taskFiles) {
-	//ul.createEl("li", { text: f.name });
-  //}
-	type FrappeTask = {
-  id: string;          // frappe 내부용 (안전한 문자열)
+type TaskRecord = {
+  id: string;
+  file: TFile;
   name: string;
   start: string;
   end: string;
   progress: number;
-  filePath: string;    // ✅ Obsidian 파일 경로(진짜)
 };
 
 
-	function isYmd(s: unknown): s is string {
-	return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
-	}
 
-  const taskPathById = new Map<string, string>();
+  function isYmd(s: unknown): s is string {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
 
-const frappeTasks: FrappeTask[] = taskFiles
+const taskRecords: TaskRecord[] = taskFiles
   .map((file) => {
     const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
     const start = fm?.start;
     const end = fm?.end;
     if (!isYmd(start) || !isYmd(end)) return null;
 
-    // frappe-gantt 내부에서 안전하게 쓸 id (슬래시/공백 제거)
-    const id = file.path.replace(/[^\w-]/g, "_");
-
-    taskPathById.set(id, file.path); // ✅ 여기 저장
-
+    
     return {
-      id,
+      id: file.path.replace(/[^\w-]/g, "_"),
+      file,
       name: file.basename,
       start,
       end,
-      progress: Number(fm?.progress ?? 0),
+      progress: this.calculateProgress(file),
     };
   })
-  .filter((x): x is FrappeTask => x !== null);
+  .filter((x): x is TaskRecord => x !== null);
+
+  //Minimal rows for better UX
+    const fileByTaskId = new Map(taskRecords.map((t) => [t.id, t.file]));
+    const MIN_ROWS = 8;
+    const realCount = taskRecords.length;
+    const needed = Math.max(0, MIN_ROWS - realCount);
+
+  for (let i = 0; i < needed; i++) {
+    taskRecords.push({
+     id: `__dummy_${i}`,
+     name: "",
+     start: taskRecords[0]?.start ?? "2026-02-01",
+     end: taskRecords[0]?.start ?? "2026-02-01",
+     progress: 0,
+     file: ganttFile, // ✅ 유효한 TFile 아무거나 (여기선 ganttFile)
+    });
+  }
 	
   // gantt 컨테이너 생성
   const ganttContainer = container.createEl("div");
@@ -262,40 +320,65 @@ const frappeTasks: FrappeTask[] = taskFiles
   let isDragging = false;
 
   // frappe gantt 생성
-new Gantt(ganttContainer, frappeTasks, {
-  view_mode: "Day",
-  date_format: "YYYY-MM-DD",
+const gantt = new Gantt(
+  ganttContainer,
+  taskRecords.map((t) => ({
+    id: t.id,
+    name: t.name,
+    start: t.start,
+    end: t.end,
+    progress: t.progress,
+  })),
+  {
+    view_mode: "Day",
+    date_format: "YYYY-MM-DD",
+    scroll_to: "",
 
-  on_date_change: async (task: any, start: Date, end: Date) => {
-    suppressClickUntil = Date.now() + suppressMs;
 
-    const filePath = taskPathById.get(task.id);
-    if (!filePath) return;
+    
+    on_date_change: async (task: any, start: Date, end: Date) => {
+      if (String(task.id).includes("__dummy_")) return;
+      suppressClickUntil = Date.now() + suppressMs;
 
-    await this.updateTaskDates(filePath, start, end);
-  },
+      const file = fileByTaskId.get(task.id);
+      if (!file) return;
 
-  on_click: (task: any) => {
-    // ✅ 최근 드래그/리사이즈 직후 발생한 클릭은 무시
-    if (Date.now() < suppressClickUntil) return;
+      await this.updateTaskDates(file, start, end);
+    },
 
-    const filePath = taskPathById.get(task.id);
-    if (!filePath) return;
+    on_click: (task: any) => {
+      if (String(task.id).includes("__dummy_")) return;
+      if (Date.now() < suppressClickUntil) return;
 
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (file instanceof TFile) this.app.workspace.getLeaf("tab").openFile(file);
-  },
-});
-}
- 
-private async updateTaskDates(filePath: string, start: Date, end: Date) {
-  const file = this.app.vault.getAbstractFileByPath(filePath);
-  if (!(file instanceof TFile)) {
-    new Notice("msg"); return;
-    return;
+      const file = fileByTaskId.get(task.id);
+      if (file) this.app.workspace.getLeaf("tab").openFile(file);
+    },
   }
+);
 
-  // frappe-gantt 날짜가 UTC/로컬 섞일 수 있어서 "YYYY-MM-DD" 안전 변환
+// 2. 렌더링 직후 'Today' 버튼의 이벤트를 가로챕니다.
+  // Frappe Gantt가 DOM을 그리는 시간을 약간 벌어주기 위해 setTimeout을 사용합니다.
+  setTimeout(() => {
+    const todayBtn = container.querySelector('.today-button');
+    if (todayBtn) {
+      todayBtn.addEventListener('click', (e) => {
+        // Frappe Gantt의 기본 스크롤 동작을 완전히 차단합니다.
+        e.stopImmediatePropagation(); 
+        e.preventDefault();
+
+        // 3. 원하는 도착 지점 계산 (예: 오늘 날짜로부터 3일 전을 화면 왼쪽에 맞춤)
+        // 이렇게 하면 '오늘' 날짜가 화면의 약간 오른쪽(중앙 부근)에 예쁘게 위치하게 됩니다.
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() - 5); 
+        
+        gantt.set_scroll_position(targetDate);
+      }, true); // true(캡처링 단계)로 설정하여 기본 이벤트보다 먼저 실행되게 합니다.
+    }
+  }, 100); 
+
+} // render() 종료
+
+private async updateTaskDates(file: TFile, start: Date, end: Date) {
   const toYmdLocal = (d: Date) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -308,12 +391,10 @@ private async updateTaskDates(filePath: string, start: Date, end: Date) {
 
   try {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.type = fm.type ?? "task"; // 혹시 없으면 유지/보정 (선택)
+      fm.type = fm.type ?? "task";
       fm.start = newStart;
       fm.end = newEnd;
     });
-
-    new Notice(`Updated: ${file.basename} (${newStart} ~ ${newEnd})`);
   } catch (e) {
     console.error(e);
     new Notice(`Failed to update frontmatter: ${file.basename}`);

@@ -24,3 +24,7 @@ If your plugin does not need CSS, delete this file.
 .gantt svg .bar-progress {
   pointer-events: none !important;
 }
+
+.gantt .bar-wrapper[data-id*="__dummy_"] {
+  display: none !important;
+}
