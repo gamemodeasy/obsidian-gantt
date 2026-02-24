@@ -58,16 +58,7 @@ created: ${new Date().toISOString().slice(0, 10)}
     ganttFile = await this.app.vault.create(ganttPath, content);
   }
 
-  let leaf = this.app.workspace.getLeavesOfType(GANTT_VIEW_TYPE)[0];
-  if (!leaf) leaf = this.app.workspace.getLeaf("tab");
-
-  await leaf.setViewState({
-    type: GANTT_VIEW_TYPE,
-    active: true,
-    state: { file: ganttFile.path },
-  });
-
-  this.app.workspace.revealLeaf(leaf);
+  await this.app.workspace.getLeaf(false).openFile(ganttFile);
 });
 
     this.addSettingTab(new SampleSettingTab(this.app, this));
@@ -353,7 +344,7 @@ const gantt = new Gantt(
       if (Date.now() < suppressClickUntil) return;
 
       const file = fileByTaskId.get(task.id);
-      if (file) this.app.workspace.getLeaf("tab").openFile(file);
+      if (file) this.app.workspace.getLeaf(false).openFile(file);
     },
   }
 );
