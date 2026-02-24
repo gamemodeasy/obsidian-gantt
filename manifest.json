@@ -1,11 +1,10 @@
 {
-	"id": "my-gantt-plugin",
-	"name": "My Gantt Plugin",
-	"version": "1.0.0",
+	"id": "obsidian-gantt",
+	"name": "Obsidian Gantt",
+	"version": "0.1.0-beta",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
+	"description": "A simple Gantt chart view for Obsidian.",
+	"author": "gamemodeasy",
 	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
 	"isDesktopOnly": false
 }
