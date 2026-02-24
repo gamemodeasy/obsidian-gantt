@@ -222,8 +222,8 @@ end: ${todayStr}
 
     const newFile = await this.app.vault.create(newPath, content);
 
-    // 새 파일 열기 (원하면 유지)
-    await this.app.workspace.getLeaf("tab").openFile(newFile);
+    // 새 파일 열기 (원하면 유지) - 비활성화
+    //await this.app.workspace.getLeaf("tab").openFile(newFile);
 
     // 뷰 갱신
     await this.render();
