@@ -104,9 +104,19 @@ class GanttView extends ItemView {
     return GANTT_VIEW_TYPE;
   }
 
-  getDisplayText() {
-    return "Gantt";
+  getDisplayText(): string {
+  if (!this.currentFilePath) return "Gantt";
+
+  const af = this.app.vault.getAbstractFileByPath(this.currentFilePath);
+  if (af instanceof TFile) {
+    return af.basename; // 확장자 제외 파일명
   }
+  return "Gantt";
+}
+
+getIcon(): string {
+  return "chart-gantt"; 
+}
 
   async setState(state: unknown): Promise<void> {
     const nextState = state as { file?: string };
@@ -169,6 +179,7 @@ class GanttView extends ItemView {
       text: "Add task",
     });
 
+
     addBtn.onclick = async () => {
       if (!this.currentFilePath) return;
 
@@ -206,6 +217,14 @@ end: ${todayStr}
 
       await this.app.vault.create(newPath, content);
       await this.render();
+    };
+
+    const refreshBtn = container.createEl("button", {
+    text: "Refresh",
+    });
+
+    refreshBtn.onclick = () => {
+    this.render(); // 전체 리렌더
     };
 
     let suppressClickUntil = 0;
