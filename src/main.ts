@@ -25,6 +25,32 @@ export default class MyPlugin extends Plugin {
   settings: MyPluginSettings;
 
   async onload() {
+
+    this.addCommand({
+    id: "insert-gantt-frontmatter",
+    name: "Insert Gantt frontmatter",
+    editorCallback: async (editor) => {
+    const content = editor.getValue();
+
+    // 이미 frontmatter가 있으면 중단
+    if (content.startsWith("---")) {
+      new Notice("Frontmatter already exists.");
+      return;
+    }
+
+    const today = window.moment().format("YYYY-MM-DD");
+
+    const yaml = `---
+type: task
+start: ${today}
+end: ${today}
+---
+`;
+
+    editor.setValue(yaml + content);
+    }
+    });
+
     this.registerView(GANTT_VIEW_TYPE, (leaf) => new GanttView(leaf));
     this.registerExtensions(["gantt"], GANTT_VIEW_TYPE);
 
@@ -49,12 +75,12 @@ export default class MyPlugin extends Plugin {
 
   if (!ganttFile) {
     const content = `---
-type: gantt
-created: ${new Date().toISOString().slice(0, 10)}
----
+    type: gantt
+    created: ${new Date().toISOString().slice(0, 10)}
+    ---
 
-# Gantt Project
-`;
+    # Gantt Project
+    `;
     ganttFile = await this.app.vault.create(ganttPath, content);
   }
 
