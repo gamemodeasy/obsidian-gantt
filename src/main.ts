@@ -57,12 +57,13 @@ end: ${today}
     await this.loadSettings();
 
     this.addRibbonIcon("chart-gantt", "Open Gantt", async () => {
-  const activeFile = this.app.workspace.getActiveFile();
+    const activeFile = this.app.workspace.getActiveFile();
 
-  if (!activeFile) {
+    
+    if (!activeFile) {
     new Notice("Open any file inside a folder first.");
     return;
-  }
+    }
 
   const folder = activeFile.parent;
   if (!folder) {
@@ -115,6 +116,11 @@ class GanttView extends ItemView {
 	private currentFilePath: string | null = null;
   private onModifyRef?: (file: TFile) => void;
   private modifyTimer: number | null = null;
+  private filePath: string | null = null;
+
+  getIcon(): string {
+  return "chart-gantt";  
+  }
 
 // task 파일의 체크박스 상태로 진행률 계산
   private calculateProgress(file: TFile): number {
@@ -140,17 +146,21 @@ class GanttView extends ItemView {
 	return GANTT_VIEW_TYPE;
 	}
 
-	getDisplayText() {
-	return "Gantt";
-	}
+getDisplayText(): string {
+  if (!this.currentFilePath) return "Gantt";
+
+  const file = this.app.vault.getAbstractFileByPath(this.currentFilePath);
+  return file instanceof TFile ? file.basename : "Gantt";
+}
 
   // 이 뷰가 어떤 파일을 보고 있는지 Obsidian이 state로 넘겨줄 때 여기서 받음
-	async setState(state: unknown, result: any): Promise<void> {
-	const s = state as { file?: string };
-	this.currentFilePath = s?.file ?? null;
-	await this.render();
-	}
+async setState(state: unknown, result: any): Promise<void> {
+  const s = state as { file?: string };
+  this.currentFilePath = s?.file ?? null;
 
+  this.leaf.setViewState(this.leaf.getViewState());
+  await this.render();
+}
 	getState(): Record<string, unknown> {
 	return { file: this.currentFilePath ?? undefined };
 	}
@@ -256,6 +266,14 @@ end: ${todayStr}
   };
 
   //이상 260223 테스크버튼 추가
+
+  const refreshBtn = toolbar.createEl("button", {
+  text: "Refresh",
+});
+
+refreshBtn.onclick = async () => {
+  await this.render();
+};
 
   let suppressClickUntil = 0;
   const suppressMs = 500; // 0.5초 정도면 충분

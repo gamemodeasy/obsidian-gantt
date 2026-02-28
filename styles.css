@@ -28,3 +28,8 @@ If your plugin does not need CSS, delete this file.
 .gantt .bar-wrapper[data-id*="__dummy_"] {
   display: none !important;
 }
+
+.gantt-toolbar {
+  display: flex;
+  gap: 8px;   /* 버튼 사이 간격 */
+}
